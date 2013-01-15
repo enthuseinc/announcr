@@ -7,7 +7,7 @@ Gem::Specification.new do |gem|
   gem.name          = "announcr"
   gem.version       = Announcr::VERSION
   gem.authors       = ["Michael-Keith Bernard"]
-  gem.email         = ["mkbernard@enthu.se"]
+  gem.email         = ["mkbernard.dev@gmail.com"]
   gem.description   = %q{TODO: Write a gem description}
   gem.summary       = %q{TODO: Write a gem summary}
   gem.homepage      = ""
@@ -16,4 +16,6 @@ Gem::Specification.new do |gem|
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.require_paths = ["lib"]
+
+  gem.add_dependency "statsd-ruby", "~> 1.2"
 end
