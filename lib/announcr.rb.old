@@ -1,0 +1,144 @@
+require 'ostruct'
+require 'statsd'
+
+# Announcr is a micro-dsl for describing events.
+module Announcr
+  DEFAULT_CONFIGURATION = {
+    graphite_server: "localhost",
+    graphite_port: 8125,
+    statsd: nil
+  }
+
+  @namespaces = {}
+
+  # Create a new namespace
+  # @param [String] name name of namespace
+  # @param [block] block will be evaluated in context of new namespace
+  def self.namespace(name, &block)
+    ns = register_namespace(name, Namespace.new(name))
+    ns.instance_eval(&block)
+    ns
+  end
+
+  # Register a namespace
+  # @param [String] name name of namespace
+  # @param [Announcr::Namespace] namespace the namespace
+  def self.register_namespace(name, namespace)
+    @namespaces[name.to_s] = namespace
+  end
+
+  # Announcr configuration
+  # @yield configuration struct
+  def self.config
+    @configuration ||= OpenStruct.new(DEFAULT_CONFIGURATION)
+    yield @configuration if block_given?
+    @configuration
+  end
+
+  # Connection to statsd
+  # @return Statsd connection
+  def self.statsd
+    @statsd ||= config.statsd ||
+      Statsd.new(config.graphite_server, config.graphite_port)
+  end
+
+  # Accounce an event to all registered namespaces
+  def announce_all(event, opts = {})
+    @namespaces.values.each do |ns|
+      ns.announce(event, opts)
+    end
+  end
+
+  class Namespace
+    DEFAULT_CONFIGURATION = {}
+    attr_reader :name
+
+    def initialize(name)
+      @name = name
+      @events = []
+    end
+
+    def config
+      @configuration ||= OpenStruct.new(DEFAULT_CONFIGURATION)
+      yield @configuration if block_given?
+      @configuration
+    end
+
+    def to_hash
+      { config: @configuration.marshal_dump, events: @events, name: @name }
+    end
+
+    def event(name, &block)
+      @events << Event.new(self, name, &block)
+    end
+
+    def announce(event_name, opts = {})
+      @events.select do |event|
+        event.matches?(event_name)
+      end.each do |event|
+        event.track!(event_name, opts.dup)
+      end
+      self
+    end
+  end
+
+  class Event
+    def initialize(namespace, matcher, &block)
+      @namespace = namespace
+      @matcher = create_matcher(matcher)
+      @body = block
+    end
+
+    def matches?(event)
+      @matcher.call(event)
+    end
+
+    def track!(event_name, opts = {})
+      scope = EventScope.new(event_name, @namespace, opts)
+      scope.instance_eval(&@body)
+      scope.run_actions!(::Announcr.statsd)
+    end
+
+    private
+
+    def create_matcher(matcher)
+      if matcher.is_a?(String) || matcher.is_a?(Symbol)
+        matcher = matcher.to_s.downcase
+        Proc.new { |event| event.to_s.downcase == matcher.downcase }
+      elsif matcher.is_a?(Regexp)
+        Proc.new { |event| matcher.match(event) }
+      elsif matcher.respond_to? :call
+        Proc.new { |event| matcher.call(event) }
+      else
+        raise "invalid matcher for Announcr::Event"
+      end
+    end
+  end
+
+  class EventScope
+    attr_reader :namespace, :event_name, :config, :data, :actions
+
+    [:increment, :decrement, :count, :gauge, :timing, :time].each do |m|
+      define_method(m) do |*args|
+        @actions << Proc.new { |statsd| statsd.send(m, *args) }
+      end
+      private m
+    end
+
+    def initialize(event_name, namespace, data)
+      @event_name = event_name
+      @namespace = namespace
+      @config = namespace.config
+      @data = data
+      @actions = []
+    end
+
+    def announce(event, opts = {})
+      @namespace.announce(event, @data.merge(opts))
+    end
+
+    def run_actions!(statsd)
+      @actions.each { |axn| axn.call(statsd) }
+    end
+  end
+end
