@@ -30,6 +30,11 @@ module Announcr
       end.all?
     end
 
+    def dispatch(event_name, opts = {})
+      scope = EventScope.new(event_name, @options.dup.merge(data: opts))
+      scope.instance_eval(&@action)
+    end
+
     def make_filter(filter)
       return filter if filter.respond_to?(:call)
 
