@@ -31,6 +31,10 @@ module Announcr
     end
 
     def dispatch(event_name, opts = {})
+      matches?(event_name, opts) ? dispatch!(event_name, opts) : nil
+    end
+
+    def dispatch!(event_name, opts = {})
       scope = EventScope.new(event_name, @options.dup.merge(data: opts))
       scope.instance_eval(&@action)
     end

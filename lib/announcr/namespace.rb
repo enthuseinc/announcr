@@ -25,7 +25,7 @@ module Announcr
 
     def event_options
       {
-        namesapce: self
+        namesapce: self,
         default_backend: @default_backend,
       }.merge(prefix_config)
     end
