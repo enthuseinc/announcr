@@ -2,19 +2,25 @@ require 'logger'
 
 module Announcr
   module Backend
-    class Logger < Base
+    class Logger
+      extend Forward
+
+      DEFAULTS = {
+        out: STDOUT,
+        logger: nil
+      }
+
+      attr_reader :options
+
+      def initialize(opts = {})
+        @options = DEFAULTS.merge(opts)
+      end
+
       def target
-        @logger ||= options[:logger] ||
-          defined?(Rails) ? Rails.logger : ::Logger.new(options[:out])
+        @logger ||= @options[:logger] || ::Logger.new(@options[:out])
       end
 
-      def default_options
-        { as: "log", out: STDOUT, logger: nil }
-      end
-
-      def forwarded_methods
-        [:debug, :info, :warn, :error, :fatal]
-      end
+      forward_methods :debug, :info, :warn, :error, :fatal
     end
   end
 end

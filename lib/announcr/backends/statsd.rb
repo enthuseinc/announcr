@@ -1,17 +1,26 @@
+require 'statsd'
+
 module Announcr
   module Backend
-    class Statsd < Base
+    class Statsd
+      extend Forward
+
+      DEFAULTS = {
+        host: "localhost",
+        port: 8125
+      }
+
+      attr_reader :options
+
+      def initialize(opts = {})
+        @options = DEFAULTS.merge(opts)
+      end
+
       def target
-        @statsd ||= Statsd.new(options[:server], options[:port])
+        @statsd ||= ::Statsd.new(@options[:host], @options[:port])
       end
 
-      def default_options
-        { as: "stats", server: "localhost", port: 8125 }
-      end
-
-      def forwarded_methods
-        [:increment, :decrement, :count, :gauge, :timing, :time]
-      end
+      forward_methods :increment, :decrement, :count, :gauge, :timing, :time
     end
   end
 end
