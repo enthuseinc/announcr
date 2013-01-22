@@ -32,7 +32,7 @@ module Announcr
 
     def key_for(key, ignore_prefixes = false)
       return key if ignore_prefixes
-      [@prefixes, key].flatten.compact.join(@separator)
+      [prefixes, key].flatten.compact.join(separator)
     end
 
     def prefix_config
