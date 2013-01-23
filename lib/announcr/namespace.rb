@@ -1,52 +1,101 @@
 module Announcr
   class Namespace
-    include ::Announcr::Prefix
+    attr_reader :parent, :children, :backends, :events
 
-    attr_reader :name, :events, :default_backend
-
-    def initialize(name, opts = {})
-      @name = name
-      @default_backend = opts[:default_backend]
-      load_prefix_config(opts)
+    [:name, :prefix, :separator, :default_backend].each do |o|
+      attr_reader o
+      define_method("set_#{o}") do |new_val|
+        new_val = new_val.to_s.strip.downcase.to_sym
+        instance_variable_set("@#{o}", new_val)
+      end
     end
 
-    def describe(&block)
-      instance_eval(&block) if block_given?
+    def initialize(name, opts = {}, &block)
+      @name = name
+      @parent = opts.delete(:parent)
+      @children = []
+      @backends = {}
+      @events = []
+
+      @default_backend = nil
+      @prefix = name.downcase.to_sym
+      @separator = "."
+
+      configure(&block) if block_given?
+    end
+
+    def collect(key, default = nil)
+      values, target = [], self
+      while target
+        res = target.send(key) rescue nil
+        values << res || default
+        target = target.parent
+      end
+      values.compact.reverse
+    end
+
+    def get(key, default = nil)
+      target = self
+      while target
+        res = target.respond_to?(key) ? target.send(key) : nil
+        return res if res
+        target = target.parent
+      end
+      default
+    end
+
+    def key_for(key)
+      (collect(:prefix) << key).join(get(:separator))
+    end
+
+    def all_backends
+      collect(:backends).inject({}) do |m, be|
+        m.merge(be)
+      end
+    end
+
+    def configure(&block)
+      return self unless block_given?
+      block.arity == 1 ? yield(self) : instance_eval(&block)
       self
     end
 
-    # Set or return the default backend used in `EventScope` for events
-    #   dispatched from this namespace
-    # @param [String] name name of backend
-    def default(name = nil)
-      raise "unknown backend #{name}" unless ::Announcr.has_key?(name)
-      @default_backend ||= name
+    def namespace(name, opts = {}, &block)
+      child = Namespace.new(name, opts.merge(parent: self))
+      child.configure(&block) if block_given?
+      @children << child
+      child
     end
 
-    def event_options
-      {
-        namesapce: self,
-        default_backend: @default_backend,
-      }.merge(prefix_config)
+    def backend(name, klass, opts = {})
+      backend = klass.new(opts)
+      name = name.downcase.to_sym
+      @backends[name] = backend
+      backend
     end
 
     # Register a new event
     # @param [String] name name of event
     # @param [Hash] opts event options (see `Event`)
     def event(name, opts = {}, &block)
-      @events << Event.new(name, event_options.merge(opts), &block)
+      event = Event.new(name, opts.merge(namespace: self), &block)
+      @events << event
+      event
     end
 
     # Broadcast a new event
     def announce(event_name, opts = {}, &block)
+      announce_local(event_name, opts, &block)
+      @children.each { |c| c.announce(event_name, opts, &block) }
+    end
+
+    def announce_local(event_name, opts = {}, &block)
       if block_given?
-        e = Event.new(self, event_name, &block)
-        e.track!(event_name, opts)
+        e = Event.new(event_name, opts.merge(namespace: self), &block)
+        e.dispatch!(event_name, opts)
       end
 
-      @events.select do |event|
-        event.matches?(event_name, opts)
-      end.map do |event|
+      @events.each do |event|
         event.dispatch(event_name, opts)
       end
     end
