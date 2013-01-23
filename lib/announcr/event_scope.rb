@@ -15,8 +15,8 @@ module Announcr
       setup_proxy_methods!
     end
 
-    def key_for(key)
-      @namespace.key_for(key)
+    def key_for(*keys)
+      @namespace.key_for(keys)
     end
 
     def event_name_key
