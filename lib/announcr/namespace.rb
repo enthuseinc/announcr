@@ -44,8 +44,8 @@ module Announcr
       default
     end
 
-    def key_for(key)
-      (collect(:prefix) << key).join(get(:separator))
+    def key_for(*keys)
+      (collect(:prefix) + keys).flatten.compact.join(get(:separator))
     end
 
     def all_backends
