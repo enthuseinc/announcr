@@ -8,8 +8,8 @@ Gem::Specification.new do |gem|
   gem.version       = Announcr::VERSION
   gem.authors       = ["Michael-Keith Bernard"]
   gem.email         = ["mkbernard.dev@gmail.com"]
-  gem.description   = %q{TODO: Write a gem description}
-  gem.summary       = %q{TODO: Write a gem summary}
+  gem.description   = %q{A small event DSL}
+  gem.summary       = %q{Ruby DSL for describing and recording system events.}
   gem.homepage      = ""
 
   gem.files         = `git ls-files`.split($/)
