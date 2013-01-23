@@ -5,9 +5,12 @@ module Announcr
       @action = block
       @options = opts
 
-      @pattern = make_filter(opts.delete(:pattern) || @name)
-      @filters = make_filters([opts.delete(:filters)])
-      @requires = [opts.delete(:requires)].flatten.compact
+      @pattern = make_filter(opts.fetch(:pattern, @name))
+      @requires = [opts.fetch(:requires, [])].flatten.compact
+
+      filter = opts[:filter]
+      filters = ([opts[:filters]] << filter).flatten.compact
+      @filters = make_filters(filters)
     end
 
     def match_pattern?(event_name, opts = {})
@@ -35,7 +38,7 @@ module Announcr
     end
 
     def dispatch!(event_name, opts = {})
-      scope = EventScope.new(event_name, @options.dup.merge(data: opts))
+      scope = EventScope.new(event_name, @options.merge(data: opts))
       scope.instance_eval(&@action)
     end
 
