@@ -19,6 +19,10 @@ module Announcr
       @namespace.key_for(key)
     end
 
+    def event_name_key
+      key_for(event_name)
+    end
+
     private
 
     def setup_proxy_methods!
